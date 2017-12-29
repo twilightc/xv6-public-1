@@ -15,6 +15,7 @@ initlock(struct spinlock *lk, char *name)
   lk->name = name;
   lk->locked = 0;
   lk->cpu = 0;
+  lk->lockcount = 0;
 }
 
 // Acquire the lock.
@@ -40,6 +41,7 @@ acquire(struct spinlock *lk)
   // Record info about lock acquisition for debugging.
   lk->cpu = mycpu();
   getcallerpcs(&lk, lk->pcs);
+  lk->lockcount++;
 }
 
 // Release the lock.
@@ -120,3 +122,8 @@ popcli(void)
     sti();
 }
 
+int
+getcount(struct spinlock *lk)
+{
+  return lk->lockcount;
+}

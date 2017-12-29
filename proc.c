@@ -88,7 +88,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-
+  p->priority = 13;
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -323,6 +323,8 @@ void
 scheduler(void)
 {
   struct proc *p;
+  struct proc *p_spin;	//check spin_lock
+
   struct cpu *c = mycpu();
   c->proc = 0;
   
@@ -330,16 +332,29 @@ scheduler(void)
     // Enable interrupts on this processor.
     sti();
 
+    struct proc *prh = 0;
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
 
+      prh = p;
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
-      c->proc = p;
+      for(p_spin = ptable.proc; p_spin < &ptable.proc[NPROC];p_spin++){
+	if(p_spin->state != RUNNABLE)
+	  continue;
+	if(p_spin->priority < prh->priority)
+	  prh = p_spin;
+	//if(p_spin->priority < prh->priority && ptable.lock.lockcount > 4 ){
+	//  prh=p_spin;
+	//  prh->priority = p_spin->priority-1;
+	//}
+      }
+      p=prh;
+      c->proc = p;	//round-robin
       switchuvm(p);
       p->state = RUNNING;
 
@@ -531,4 +546,55 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+
+int
+cps()
+{
+  struct proc *p;
+ 
+  sti();
+
+  acquire(&ptable.lock);
+  cprintf("name \t pid \t state \t \t priority \n");
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if( p->state == RUNNING)
+	cprintf("%s \t %d \t RUNNING \t %d\n",p->name,p->pid,p->priority);  
+      else if( p->state == RUNNABLE)
+	cprintf("%s \t %d \t RUNNABLE \t %d\n",p->name,p->pid,p->priority);  
+      else if( p->state == SLEEPING)
+	cprintf("%s \t %d \t SLEEPING \t %d\n",p->name,p->pid,p->priority); 
+  }
+  release(&ptable.lock);
+  return 22;
+}
+
+
+int
+halt()
+{
+  char *p = "Shutdown";
+  for( ; *p; p++)	
+	outw(0xB004, 0x2000);
+	//outb(0x8900, *p);
+  return 0;
+}
+
+
+int
+chpy(int pid, int priority)
+{
+  struct proc *p;
+
+  acquire(&ptable.lock);
+  for(p=ptable.proc;p<&ptable.proc[NPROC]; p++){
+    if(p->pid == pid){
+	p->priority = priority;
+	break;
+    }
+  }
+  release(&ptable.lock);
+  return pid;
+
 }

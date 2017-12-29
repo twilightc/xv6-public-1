@@ -89,3 +89,44 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+
+int
+sys_halt(void)
+{
+  char *p = "Shutdown";
+  for( ; *p; p++)
+	outw(0xB004, 0x2000);
+//	outb(0x8900, *p);
+  return 0;
+}
+
+int
+sys_cps(void)
+{
+  return cps();
+}
+
+int
+sys_chpy(void)
+{
+  int pr, pid;
+  if(argint(1, &pr) < 0)
+    return -1;
+  if(argint(0, &pid) < 0)
+    return -1;
+  
+  return chpy(pid, pr);
+}
+
+int
+sys_showdate(void)
+{
+  struct rtcdate *rdate;
+  //argument not found
+  if(argptr(0,(char **)&rdate,sizeof(struct rtcdate))<0)
+    return -1;
+  //get real-world time info.
+  cmostime(rdate);
+  return 0;
+}
